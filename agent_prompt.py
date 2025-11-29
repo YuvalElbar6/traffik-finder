@@ -89,7 +89,7 @@ If fewer than 5 real issues exist:
 Report only the real ones.
 
 ===============================================================
-STEP 4 — Output Format
+STEP 4 — Output Format (Includes Program and Version Info)
 ===============================================================
 Use this format:
 
@@ -97,8 +97,11 @@ Use this format:
 - What it is: [RAG explanation]
 - Why it's a problem: [simple explanation]
 - What could happen: [from RAG]
+- Program / Component: [program name if available]
+- Installed version: [from MCP if available]
+- Fixed version: [from RAG if available]
 - Source: [the MCP tool]
-- Severity: [CVSS, alert level, or log severity]
+- Severity: [CVSS, alert level, process risk, or log severity]
 
 If nothing found:
 "Good news: No critical security issues were found for agent 001."
