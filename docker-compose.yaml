@@ -8,11 +8,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.server
-      platforms:
-        - linux/amd64
-        - linux/arm64
-    image: wazuh-mcp-server:latest
-    container_name: wazuh-mcp-server
+    # container_name: wazuh-mcp-server
     restart: unless-stopped
 
     ports:
@@ -45,11 +41,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.client
-      platforms:
-        - linux/amd64
-        - linux/arm64
-    image: wazuh-client:latest
-    container_name: wazuh-client
+    # container_name: wazuh-client
     restart: unless-stopped
 
     # Load environment variables from .env file

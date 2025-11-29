@@ -100,9 +100,8 @@ wazuh-mcp-docker/
 ├── .env.example               # Template for .env
 ├── docker-compose.yml         # Orchestration config
 │
-├── Dockerfiles/
-│   ├── Dockerfile.server      # MCP server image
-│   └── Dockerfile.client      # Wazuh client image
+├── Dockerfile.server      # MCP server image
+├── Dockerfile.client      # Wazuh client image
 │
 ├── Python Application Files/
 │   ├── mcp_server.py         # MCP server (server only)
