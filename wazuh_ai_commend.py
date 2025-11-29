@@ -5,10 +5,21 @@ from langchain_openai import ChatOpenAI
 from langchain.agents import create_agent
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.sessions import SSEConnection
+from requests.utils import get_auth_from_url
 
+from agent_prompt import get_agent_prompt
 from rag_tool import wazuh_rag_search
 from rag_internet_router import route_query
 
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+API_KEY = os.getenv("api_key","")
+
+if not API_KEY:
+    raise RuntimeError("No api key for the llm!")
 
 # Disable SSL checks for internal Wazuh API traffic
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -79,25 +90,17 @@ async def main():
         print(" -", t.name)
 
     all_tools = mcp_tools + [route_query, wazuh_rag_search]
-
     model = ChatOpenAI(
         model="gpt-4o",
         api_key=os.getenv("api_key"),
     )
 
+    prompt = get_agent_prompt()
+    print(prompt)
     agent = create_agent(
         model=model,
         tools=all_tools,
-        system_prompt="""
-            You are a Wazuh assistant with real API access via MCP tools + RAG.
-
-            RULES:
-            1. ALWAYS call a MCP tool when the user's question asks about live data.
-            2. Use wazuh_rag_search ONLY for documentation questions.
-            3. Use route_query to decide which tool to call.
-            4. NEVER invent Wazuh data. Always call a tool.
-            5. Be concise, structured, clear.
-        """
+        system_prompt=prompt
     )
 
     await chat_loop(agent)

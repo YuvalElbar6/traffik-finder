@@ -1,44 +1,8 @@
 # file: wazuh_mcp_server.py
-import os
-import requests
 from mcp.server.fastmcp import FastMCP
-from mcp.types import Tool, TextContent
+
+from mcp_client_call import wazuh_get, wazuh_indexer_post, compress_results
 from mcp_helper import auto_params
-
-WAZUH_API = os.getenv("WAZUH_API", "https://54.172.121.51:55000")
-WAZUH_USER = os.getenv("wazuh_user", "")
-WAZUH_PASS = os.getenv("wazuh_password", "")
-
-if not WAZUH_USER or not WAZUH_PASS:
-    raise RuntimeError("Missing Wazuh credentials!")
-
-
-if not (WAZUH_USER and WAZUH_PASS):
-    raise RuntimeError("Missing Wazuh credentials")
-
-
-
-def get_token():
-    """Authenticate with Wazuh API and return JWT."""
-    resp = requests.post(
-        f"{WAZUH_API}/security/user/authenticate?raw=true",
-        auth=(WAZUH_USER, WAZUH_PASS),
-        verify=False
-    )
-    resp.raise_for_status()
-    return resp.text.strip()
-
-
-def wazuh_get(endpoint: str):
-    """GET helper for Wazuh API."""
-    token = get_token()
-    resp = requests.get(
-        f"{WAZUH_API}{endpoint}",
-        headers={"Authorization": f"Bearer {token}"},
-        verify=False
-    )
-    resp.raise_for_status()
-    return resp.json()
 
 
 # ==========================
@@ -82,7 +46,7 @@ def get_manager_logs(params):
         limit = 5000
 
     data = wazuh_get(f"/manager/logs?limit={limit}&sort=-timestamp")
-    return str(data)
+    return str(compress_results(data,max_items=10, max_fields=6))
 
 # ============================================================
 # 3) WEEKLY STATS — /manager/stats/weekly
@@ -90,7 +54,7 @@ def get_manager_logs(params):
 @mcp.tool(name="get_wazuh_weekly_stats")
 def get_weekly_stats(params):
     data = wazuh_get("/manager/stats/weekly")
-    return str(data)
+    return str(compress_results(data,max_items=10, max_fields=6))
 
 
 # ============================================================
@@ -99,7 +63,7 @@ def get_weekly_stats(params):
 @mcp.tool(name="get_wazuh_cluster_nodes")
 def get_cluster_nodes(params):
     data = wazuh_get("/cluster/nodes")
-    return str(data)
+    return str(compress_results(data,max_items=10, max_fields=6))
 
 
 # ============================================================
@@ -108,97 +72,203 @@ def get_cluster_nodes(params):
 @mcp.tool(name="get_wazuh_cluster_health")
 def get_cluster_health(params):
     data = wazuh_get("/cluster/healthcheck")
-    return str(data)
+    return str(compress_results(data,max_items=10, max_fields=6))
 
 
 # ============================================================
 # 6) VULNERABILITIES — /vulnerability/os/{agent_id}
 # ============================================================
 @mcp.tool(name="get_wazuh_vulnerabilities")
-@auto_params("agent_id", defaults={"agent_id": "000"})
-def get_vulnerabilities(params):
+@auto_params("agent_id", defaults={"agent_id": "001"})
+def get_wazuh_vulnerabilities(params):
     agent_id = params["agent_id"]
-    data = wazuh_get(f"/vulnerability/os/{agent_id}")
-    return str(data)
+
+    body = {
+        "size": 50,
+        "query": {
+            "bool": {
+                "must": [
+                    {"term": {"agent.id": agent_id}}
+                ]
+            }
+        }
+    }
+
+    result = wazuh_indexer_post(
+        "/wazuh-states-vulnerabilities-*/_search",body
+    )
+
+    hits = result.get("hits", {}).get("hits", [])
+
+    vulns = []
+    for hit in hits:
+        src = hit.get("_source", {})
+        vulns.append(src)
+
+
+    return str(compress_results(vulns,max_items=10, max_fields=6))
+
 
 
 # ============================================================
 # 7) PROCESSES — /syscollector/{agent}/processes
 # ============================================================
 @mcp.tool(name="get_wazuh_processes")
-@auto_params("agent_id", defaults={"agent_id": "000"})
+@auto_params("agent_id", defaults={"agent_id": "001"})
 def get_processes(params):
     agent_id = params["agent_id"]
-    data = wazuh_get(f"/syscollector/{agent_id}/processes")
-    return str(data)
+    data = wazuh_get(f"/syscollector/{agent_id}/processes?limit=50")
+    return str(compress_results(data,max_items=10, max_fields=6))
 
 
 # ============================================================
 # 8) AGENT PORTS — /syscollector/{agent}/ports
 # ============================================================
 @mcp.tool(name="get_wazuh_agent_ports")
-@auto_params("agent_id", defaults={"agent_id": "000"})
+@auto_params("agent_id", defaults={"agent_id": "001"})
 def get_agent_ports(params):
     agent_id = params["agent_id"]
-    data = wazuh_get(f"/syscollector/{agent_id}/ports")
-    return str(data)
+    data = wazuh_get(f"/syscollector/{agent_id}/ports?limit=50")
+    return str(compress_results(data,max_items=10, max_fields=6))
 
 
 # ============================================================
 # 9) SEARCH MANAGER LOGS — /manager/logs?q=
 # ============================================================
 @mcp.tool(name="search_wazuh_manager_logs")
-@auto_params("query", defaults={"query": ""})
+@auto_params("query", "limit", defaults={"query": "", "limit": "20"})
 def search_manager_logs(params):
     query = params["query"]
-    data = wazuh_get(f"/manager/logs?q={query}")
-    return str(data)
+    raw_limit = params["limit"]
+
+    # convert limit safely
+    try:
+        limit = int(raw_limit)
+    except:
+        limit = 20
+
+    # enforce sane boundaries
+    if limit <= 0:
+        limit = 20
+    if limit > 50:
+        limit = 50
+
+    # call API with limit
+    data = wazuh_get(f"/manager/logs?q={query}&limit={limit}")
+
+    items = data.get("data", {}).get("affected_items", [])
+
+    # compress ONLY the list of log items (very important!)
+    compressed = compress_results(items, max_items=limit, max_fields=6)
+
+    return str(compressed)
 
 
 # ============================================================
 # 10) CUSTOM ALERT FILTERS — /alerts
 # ============================================================
 @mcp.tool(name="custom_alert_filters")
-@auto_params("severity", "rule", "agent",
-             defaults={"severity": "", "rule": "", "agent": ""})
+@auto_params("agent_id", defaults={"agent_id": "001"})
 def custom_alert_filters(params):
-    severity = params["severity"]
-    rule = params["rule"]
-    agent = params["agent"]
+    agent_id = params["agent_id"]
 
-    url = "/alerts?"
+    body = {
+        "size": 50,
+        "query": {
+            "bool": {
+                "must": [
+                    {"term": {"agent.id": agent_id}}
+                ]
+            }
+        },
+        "sort": [
+            {"@timestamp": {"order": "desc"}}
+        ]
+    }
 
-    if severity:
-        url += f"severity={severity}&"
-    if rule:
-        url += f"rule.id={rule}&"
-    if agent:
-        url += f"agent.id={agent}&"
+    result = wazuh_indexer_post(
+        "/wazuh-alerts-*/_search", body
+    )
 
-    data = wazuh_get(url.rstrip("&?"))
-    return str(data)
+    hits = result.get("hits", {}).get("hits", [])
+
+    alerts = []
+    for hit in hits:
+        src = hit.get("_source", {})
+        alerts.append(src)
+
+    return str(compress_results(alerts,max_items=10, max_fields=6))
 
 
 # ============================================================
-# 11) FIM CHANGES — /fim/{agent}/changes
+# 11) FIM CHANGES — /syscheck/{agent_id}
 # ============================================================
 @mcp.tool(name="custom_fim_queries")
-@auto_params("agent_id", defaults={"agent_id": "000"})
-def custom_fim(params):
+@auto_params("agent_id", defaults={"agent_id": "001"})
+def custom_fim_queries(params):
     agent_id = params["agent_id"]
-    data = wazuh_get(f"/fim/{agent_id}/changes")
-    return str(data)
+
+    body = {
+        "size": 50,
+        "query": {
+            "bool": {
+                "must": [
+                    {"term": {"agent.id": agent_id}}
+                ]
+            }
+        },
+        "sort": [
+            {"@timestamp": {"order": "desc"}}
+        ]
+    }
+
+    result = wazuh_indexer_post(
+        "/wazuh-syscheck-*/_search",
+        body
+    )
+
+    hits = result.get("hits", {}).get("hits", [])
+
+    events = []
+    for hit in hits:
+        src = hit.get("_source", {})
+        events.append(src)
+
+    return str(compress_results(events,max_items=10, max_fields=6))
 
 
 # ============================================================
 # 12) OSQUERY RESULTS — /osquery/{agent}/queries
 # ============================================================
 @mcp.tool(name="get_osquery_results")
-@auto_params("agent_id", defaults={"agent_id": "000"})
+@auto_params("agent_id", defaults={"agent_id": "001"})
 def get_osquery_results(params):
     agent_id = params["agent_id"]
     data = wazuh_get(f"/osquery/{agent_id}/queries")
-    return str(data)
+    return str(compress_results(data,max_items=10, max_fields=6))
+
+
+# ============================================================
+# 13) AGENTS HOTFFIX — /experimental/hotfixes/{aid}
+# ============================================================
+@mcp.tool(name="get_all_agents_hotfixes")
+def get_all_agents_hotfixes():
+    agents = wazuh_get("/agents?limit=5001")
+    items = agents.get("data", {}).get("affected_items", [])
+    all_hotfixes = {}
+    for agent in items:
+        aid = agent.get("id")
+        if not aid:
+            continue
+        try:
+            data = wazuh_get(f"/experimental/hotfixes/{aid}")
+            hot = data.get("data", {}).get("affected_items", [])
+        except:
+            hot = []
+        all_hotfixes[aid] = hot
+
+    
+    return str(compress_results(all_hotfixes,max_items=10, max_fields=6))
 
 
 # ============================================================
@@ -207,3 +277,7 @@ def get_osquery_results(params):
 if __name__ == "__main__":
     print("🚀 Wazuh MCP Server running at http://127.0.0.1:8080/sse")
     mcp.run(transport="sse")
+
+
+
+
