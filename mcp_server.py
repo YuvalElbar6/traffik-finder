@@ -12,7 +12,7 @@ mcp = FastMCP(
     name="wazuh-mcp-server",
     host="127.0.0.1",
     port=8080,
-    sse_path="/sse",
+    streamable_http_path="/"
 )
 
 # ============================================================
@@ -271,12 +271,13 @@ def get_all_agents_hotfixes():
     return str(compress_results(all_hotfixes,max_items=10, max_fields=6))
 
 
+
 # ============================================================
 #   RUN SERVER
 # ============================================================
 if __name__ == "__main__":
-    print("🚀 Wazuh MCP Server running at http://127.0.0.1:8080/sse")
-    mcp.run(transport="sse")
+    print("🚀 Wazuh MCP Server running at http://127.0.0.1:8080/")
+    mcp.run(transport="streamable-http")
 
 
 

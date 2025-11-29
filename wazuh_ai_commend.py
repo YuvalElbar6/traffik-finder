@@ -3,11 +3,10 @@ import os
 import ssl
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_agent
-from langchain_mcp_adapters.client import MultiServerMCPClient
-from langchain_mcp_adapters.sessions import SSEConnection
-from requests.utils import get_auth_from_url
 
 from agent_prompt import get_agent_prompt
+from chroma_run import run_top5_workflow
+from mcp_client_call import client
 from rag_tool import wazuh_rag_search
 from rag_internet_router import route_query
 
@@ -73,14 +72,7 @@ async def chat_loop(agent):
 async def main():
 
     # MCP connection
-    client = MultiServerMCPClient(
-        connections={
-            "wazuh": SSEConnection(
-                url="http://127.0.0.1:8080/sse/",
-                transport="sse",
-            )
-        }
-    )
+    
 
     # Load MCP tools
     mcp_tools = await client.get_tools()
@@ -89,7 +81,7 @@ async def main():
     for t in mcp_tools:
         print(" -", t.name)
 
-    all_tools = mcp_tools + [route_query, wazuh_rag_search]
+    all_tools = mcp_tools + [route_query, wazuh_rag_search, run_top5_workflow]
     model = ChatOpenAI(
         model="gpt-4o",
         api_key=os.getenv("api_key"),

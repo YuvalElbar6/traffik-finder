@@ -1,10 +1,14 @@
-
 import os
+from typing import Any, Dict
+import httpx
+from langchain_mcp_adapters.client import MultiServerMCPClient, StreamableHttpConnection
 import requests
 from dotenv import load_dotenv
 from requests.auth import HTTPBasicAuth
 
 load_dotenv()
+
+MCP_SERVER_URL= os.getenv("WMCP_SERVER_URL", "http://127.0.0.1:8080")
 
 WAZUH_API = os.getenv("WAZUH_API", "https://127.0.0.1:55000")
 WAZUH_USER = os.getenv("WAZUH_USER", "")
@@ -91,3 +95,13 @@ def compress_results(data_list, max_items=10, max_fields=6):
             compressed.append(item)
 
     return compressed
+
+
+client = MultiServerMCPClient(
+            connections={
+                "wazuh": StreamableHttpConnection(
+                    url="http://127.0.0.1:8080/",
+                    transport="streamable_http",
+                )
+            }
+    )
