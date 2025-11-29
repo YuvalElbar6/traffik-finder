@@ -211,3 +211,4 @@ __marimo__/
 
 wazuh_outputs
 wazuh_outputs/
+rag_chroma/chroma.sqlite3
