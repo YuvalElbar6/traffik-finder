@@ -1,40 +1,42 @@
+from __future__ import annotations
+
 import os
-from typing import Any, Dict
-import httpx
-from langchain_mcp_adapters.client import MultiServerMCPClient, StreamableHttpConnection
-import requests
+
+import requests  # type: ignore
 from dotenv import load_dotenv
-from requests.auth import HTTPBasicAuth
+from langchain_mcp_adapters.client import MultiServerMCPClient
+from langchain_mcp_adapters.client import StreamableHttpConnection
+from requests.auth import HTTPBasicAuth  # type: ignore
 
 load_dotenv()
 
-MCP_SERVER_URL= os.getenv("WMCP_SERVER_URL", "http://127.0.0.1:8080")
+MCP_SERVER_URL = os.getenv('WMCP_SERVER_URL', 'http://127.0.0.1:8080')
 
-WAZUH_API = os.getenv("WAZUH_API", "https://127.0.0.1:55000")
-WAZUH_USER = os.getenv("WAZUH_USER", "")
-WAZUH_PASS = os.getenv("WAZUH_PASSWORD", "")
+WAZUH_API = os.getenv('WAZUH_API', 'https://127.0.0.1:55000')
+WAZUH_USER = os.getenv('WAZUH_USER', '')
+WAZUH_PASS = os.getenv('WAZUH_PASSWORD', '')
 
-WAZUH_INDEXER_API=os.getenv("WAZUH_INDEXER_API", "https://54.172.121.51:9200")
-WAZUH_INDEXER_USER = os.getenv("WAZUH_INDEXER_USER", "")
-WAZUH_INDEXER_PASS = os.getenv("WAZUH_INDEXER_PASSWORD", "")
+WAZUH_INDEXER_API = os.getenv(
+    'WAZUH_INDEXER_API', 'https://54.172.121.51:9200',
+)
+WAZUH_INDEXER_USER = os.getenv('WAZUH_INDEXER_USER', '')
+WAZUH_INDEXER_PASS = os.getenv('WAZUH_INDEXER_PASSWORD', '')
 
 
 if not WAZUH_USER or not WAZUH_PASS:
-    raise RuntimeError("Missing Wazuh credentials!")
+    raise RuntimeError('Missing Wazuh credentials!')
 
 
 if not (WAZUH_USER and WAZUH_PASS):
-    raise RuntimeError("Missing Wazuh credentials")
+    raise RuntimeError('Missing Wazuh credentials')
 
 
 if not WAZUH_INDEXER_USER or not WAZUH_INDEXER_PASS:
-    raise RuntimeError("Missing Wazuh index credentials!")
+    raise RuntimeError('Missing Wazuh index credentials!')
 
 
 if not (WAZUH_INDEXER_USER and WAZUH_INDEXER_PASS):
-    raise RuntimeError("Missing Wazuh credentials")
-
-
+    raise RuntimeError('Missing Wazuh credentials')
 
 
 def get_token():
@@ -42,7 +44,7 @@ def get_token():
     resp = requests.post(
         f"{WAZUH_API}/security/user/authenticate?raw=true",
         auth=(WAZUH_USER, WAZUH_PASS),
-        verify=False
+        verify=False,
     )
     resp.raise_for_status()
     return resp.text.strip()
@@ -53,19 +55,19 @@ def wazuh_get(endpoint: str):
     token = get_token()
     resp = requests.get(
         f"{WAZUH_API}{endpoint}",
-        headers={"Authorization": f"Bearer {token}"},
-        verify=False
+        headers={'Authorization': f"Bearer {token}"},
+        verify=False,
     )
     resp.raise_for_status()
     return resp.json()
 
 
-def wazuh_indexer_post(endpoint: str , body: dict = {}):
+def wazuh_indexer_post(endpoint: str, body: dict = {}):
     resp = requests.post(
         f"{WAZUH_INDEXER_API}{endpoint}",
         auth=HTTPBasicAuth(WAZUH_INDEXER_USER, WAZUH_INDEXER_PASS),
         json=body,
-        verify=False
+        verify=False,
     )
     resp.raise_for_status()
     return resp.json()
@@ -98,10 +100,10 @@ def compress_results(data_list, max_items=10, max_fields=6):
 
 
 client = MultiServerMCPClient(
-            connections={
-                "wazuh": StreamableHttpConnection(
-                    url="http://127.0.0.1:8080/",
-                    transport="streamable_http",
-                )
-            }
-    )
+    connections={
+        'wazuh': StreamableHttpConnection(
+            url='http://127.0.0.1:8080/',
+            transport='streamable_http',
+        ),
+    },
+)
