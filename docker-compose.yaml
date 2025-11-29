@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  # ============================================================
+  # Wazuh MCP Server
+  # ============================================================
+  wazuh-mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+      platforms:
+        - linux/amd64
+        - linux/arm64
+    image: wazuh-mcp-server:latest
+    container_name: wazuh-mcp-server
+    restart: unless-stopped
+
+    ports:
+      - "8080:8080"
+
+    # Load environment variables from .env file
+    env_file:
+      - .env
+
+    volumes:
+      # Persist ChromaDB data
+      - ./rag_chroma:/app/rag_chroma
+      # Mount .env file as read-only (backup access method)
+      - ./.env:/app/.env:ro
+
+    networks:
+      - wazuh-network
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ============================================================
+  # Wazuh Client (Interactive)
+  # ============================================================
+  wazuh-client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+      platforms:
+        - linux/amd64
+        - linux/arm64
+    image: wazuh-client:latest
+    container_name: wazuh-client
+    restart: unless-stopped
+
+    # Load environment variables from .env file
+    env_file:
+      - .env
+
+    # Override MCP server URL to use container name
+    environment:
+      - WMCP_SERVER_URL=http://wazuh-mcp-server:8080
+
+    volumes:
+      # Share ChromaDB with server
+      - ./rag_chroma:/app/rag_chroma
+      # Mount .env file as read-only (backup access method)
+      - ./.env:/app/.env:ro
+
+    networks:
+      - wazuh-network
+
+    depends_on:
+      wazuh-mcp-server:
+        condition: service_healthy
+
+    # Interactive mode for CLI
+    stdin_open: true
+    tty: true
+
+networks:
+  wazuh-network:
+    driver: bridge
+
+volumes:
+  rag_chroma:
+    driver: local
