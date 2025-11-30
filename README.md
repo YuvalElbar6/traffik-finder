@@ -1,46 +1,160 @@
-🚀 Wazuh MCP Security Assistant - Docker Deployment
+plaintext
+
+# 🚀 Wazuh MCP Security Assistant - Docker Deployment
+
 Complete cross-platform Docker deployment for the Wazuh MCP Security Assistant with separate containers for server and client.
-📋 Table of Contents
 
-Architecture Overview
-Prerequisites
-File Structure
-Quick Start
-Environment Configuration
-Building Images
-Running Services
-Cross-Platform Support
-Usage Examples
-Troubleshooting
-Maintenance
+---
 
-🏗️ Architecture Overview
-Two-Container Architecture
-┌─────────────────────────────────────────────────────────────┐
-│                    Docker Environment                        │
-│                                                              │
-│  ┌────────────────────┐         ┌──────────────────────┐   │
-│  │  MCP Server        │         │  Wazuh Client        │   │
-│  │  (Port 8080)       │ ◄─────► │  (Interactive CLI)   │   │
-│  │                    │  HTTP   │                      │   │
-│  │  Dockerfile.server │         │  Dockerfile.client   │   │
-│  └────────────────────┘         └──────────────────────┘   │
-│           │                              │                  │
-│           └──────────┬───────────────────┘                  │
-│                      │                                      │
-│              ┌───────▼────────┐                            │
-│              │  ChromaDB      │                            │
-│              │  (Shared Vol)  │                            │
-│              └────────────────┘                            │
-│                      │                                      │
-│              ┌───────▼────────┐                            │
-│              │  .env file     │                            │
-│              │  (Mounted)     │                            │
-│              └────────────────┘                            │
-└─────────────────────────────────────────────────────────────┘
-        │                    │
-        ▼                    ▼
-   Wazuh API          Wazuh Indexer
+## 📋 Table of Contents
+
+- [Architecture Overview](#-architecture-overview)
+- [Prerequisites](#-prerequisites)
+- [File Structure](#-file-structure)
+- [Quick Start](#-quick-start)
+- [Environment Configuration](#️-environment-configuration)
+- [Building Images](#-building-images)
+- [Running Services](#-running-services)
+- [Cross-Platform Support](#-cross-platform-support)
+- [Usage Examples](#-usage-examples)
+- [Troubleshooting](#-troubleshooting)
+- [Maintenance](#️-maintenance)
+
+---
+
+## 🏗️ Architecture Overview
+
+### Two-Container Architecture
+
+```
+┌──────────────────────────────────────────────────────┐
+│             Docker Environment                        │
+│                                                       │
+│   ┌──────────────┐          ┌──────────────┐        │
+│   │ MCP Server   │          │ Wazuh Client │        │
+│   │ (Port 8080)  │ <──HTTP──│ (Interactive)│        │
+│   │              │          │              │        │
+│   │ Dockerfile.  │          │ Dockerfile.  │        │
+│   │   server     │          │   client     │        │
+│   └──────┬───────┘          └──────┬───────┘        │
+│          │                         │                 │
+│          └──────────┬──────────────┘                 │
+│                     │                                │
+│              ┌──────▼──────┐                         │
+│              │  ChromaDB   │                         │
+│              │(Shared Vol) │                         │
+│              └──────┬──────┘                         │
+│                     │                                │
+│              ┌──────▼──────┐                         │
+│              │  .env file  │                         │
+│              │  (Mounted)  │                         │
+│              └─────────────┘                         │
+└──────────────────────────────────────────────────────┘
+                      │
+                      ▼
+         ┌────────────────────────┐
+         │ External Dependencies  │
+         │  - Wazuh API          │
+         │  - Wazuh Indexer      │
+         │  - OpenAI API         │
+         └────────────────────────┘
+```
+
+### Why Two Dockerfiles?
+
+| Component | Size | Purpose | Key Features |
+|-----------|------|---------|--------------|
+| **Dockerfile.server** | ~400MB | MCP Server | Lightweight, Server components only, MCP protocol server, Wazuh API tools |
+| **Dockerfile.client** | ~550MB | Wazuh Client | Full application, AI agent, Interactive CLI, GPT-4 integration |
+
+### Environment Variable Handling
+
+The `.env` file is handled in **two ways** for maximum flexibility:
+
+**🔵 Primary Method: `env_file` directive**
+- Automatically loads variables into container environment
+- No code changes needed
+- Standard Docker Compose pattern
+- Defined in `docker-compose.yml`
+
+**🟢 Backup Method: Volume mount**
+- File mounted at `/app/.env` (read-only)
+- Python code can use `python-dotenv`
+- Fallback if `env_file` fails
+
+---
+
+## 📦 Prerequisites
+
+### Required Software
+
+| Software | Minimum Version | Installation Guide |
+|----------|----------------|-------------------|
+| Docker | 20.10+ | [Install Docker](https://docs.docker.com/get-docker/) |
+| Docker Compose | 2.0+ | [Install Compose](https://docs.docker.com/compose/install/) |
+
+### Supported Platforms
+
+- ✅ **Linux** (amd64, arm64)
+- ✅ **macOS** (Intel, Apple Silicon)
+- ✅ **Windows** (WSL2, Docker Desktop)
+
+### Required Access
+
+- ✅ Wazuh Manager API
+- ✅ Wazuh Indexer (OpenSearch)
+- ✅ OpenAI API key
+
+---
+
+## 📁 File Structure
+
+```
+wazuh-mcp-docker/
+│
+├── .env                      # Your configuration (REQUIRED)
+├── .env.example             # Template for .env
+├── docker-compose.yml       # Orchestration config
+│
+├── Dockerfile.server        # MCP server image
+├── Dockerfile.client        # Wazuh client image
+│
+├── Python Application Files/
+│   ├── mcp_server.py           # MCP server (server only)
+│   ├── mcp_helper.py           # MCP utilities (server only)
+│   ├── mcp_client_call.py      # API client (both)
+│   ├── wazuh_client.py         # Interactive client (client only)
+│   ├── agent_prompt.py         # AI prompts (client only)
+│   ├── chroma_run.py           # ChromaDB workflow (client only)
+│   ├── rag_*.py                # RAG components (client only)
+│   └── requirements.txt        # Python dependencies (both)
+│
+└── Data Directories/
+    └── rag_chroma/             # ChromaDB persistent storage (shared)
+```
+
+---
+# Copy environment template
+cp .env.example .env
+
+# Edit .env with your credentials
+nano .env  # or use your preferred editorStep 2: Configure .env Filebash# Wazuh Configuration
+WAZUH_API_URL=https://your-wazuh-manager:55000
+WAZUH_API_USER=your-username
+WAZUH_API_PASSWORD=your-password
+
+# Wazuh Indexer Configuration
+WAZUH_INDEXER_URL=https://your-indexer:9200
+WAZUH_INDEXER_USER=admin
+WAZUH_INDEXER_PASSWORD=your-indexer-password
+
+# OpenAI Configuration
+OPENAI_API_KEY=sk-your-openai-api-key
+OPENAI_MODEL=gpt-4
+
+# MCP Server Configuration
+MCP_SERVER_HOST=0.0.0.0
+MCP_SERVER_PORT=8080Step 3: Build and Run
 Why Two Dockerfiles?
 
 Dockerfile.server - MCP Server
