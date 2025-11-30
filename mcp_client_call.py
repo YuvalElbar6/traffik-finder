@@ -17,7 +17,7 @@ WAZUH_USER = os.getenv('WAZUH_USER', '')
 WAZUH_PASS = os.getenv('WAZUH_PASSWORD', '')
 
 WAZUH_INDEXER_API = os.getenv(
-    'WAZUH_INDEXER_API', 'https://54.172.121.51:9200',
+    'WAZUH_INDEXER_API', 'https://127.0.0.1:9200',
 )
 WAZUH_INDEXER_USER = os.getenv('WAZUH_INDEXER_USER', '')
 WAZUH_INDEXER_PASS = os.getenv('WAZUH_INDEXER_PASSWORD', '')
