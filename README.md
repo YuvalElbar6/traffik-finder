@@ -352,7 +352,7 @@ docker-compose config
 docker-compose exec wazuh-mcp-server env | grep WAZUH
 Connection to Wazuh Failed
 bash# Test from container
-docker-compose exec wazuh-mcp-server curl -k https://54.172.121.51:55000
+docker-compose exec wazuh-mcp-server curl -k https://localhost:55000
 
 # Check network
 docker network inspect wazuh-network
