@@ -1,10 +1,6 @@
-plaintext
-
 # 🚀 Wazuh MCP Security Assistant - Docker Deployment
 
 Complete cross-platform Docker deployment for the Wazuh MCP Security Assistant with separate containers for server and client.
-
----
 
 ## 📋 Table of Contents
 
@@ -12,133 +8,141 @@ Complete cross-platform Docker deployment for the Wazuh MCP Security Assistant w
 - [Prerequisites](#-prerequisites)
 - [File Structure](#-file-structure)
 - [Quick Start](#-quick-start)
-- [Environment Configuration](#️-environment-configuration)
+- [Environment Configuration](#-environment-configuration)
 - [Building Images](#-building-images)
 - [Running Services](#-running-services)
 - [Cross-Platform Support](#-cross-platform-support)
 - [Usage Examples](#-usage-examples)
 - [Troubleshooting](#-troubleshooting)
-- [Maintenance](#️-maintenance)
-
----
+- [Maintenance](#-maintenance)
 
 ## 🏗️ Architecture Overview
 
 ### Two-Container Architecture
 
 ```
-┌──────────────────────────────────────────────────────┐
-│             Docker Environment                        │
-│                                                       │
-│   ┌──────────────┐          ┌──────────────┐        │
-│   │ MCP Server   │          │ Wazuh Client │        │
-│   │ (Port 8080)  │ <──HTTP──│ (Interactive)│        │
-│   │              │          │              │        │
-│   │ Dockerfile.  │          │ Dockerfile.  │        │
-│   │   server     │          │   client     │        │
-│   └──────┬───────┘          └──────┬───────┘        │
-│          │                         │                 │
-│          └──────────┬──────────────┘                 │
-│                     │                                │
-│              ┌──────▼──────┐                         │
-│              │  ChromaDB   │                         │
-│              │(Shared Vol) │                         │
-│              └──────┬──────┘                         │
-│                     │                                │
-│              ┌──────▼──────┐                         │
-│              │  .env file  │                         │
-│              │  (Mounted)  │                         │
-│              └─────────────┘                         │
-└──────────────────────────────────────────────────────┘
-                      │
-                      ▼
-         ┌────────────────────────┐
-         │ External Dependencies  │
-         │  - Wazuh API          │
-         │  - Wazuh Indexer      │
-         │  - OpenAI API         │
-         └────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                      Docker Environment                      │
+│                                                              │
+│  ┌────────────────────┐         ┌──────────────────────┐   │
+│  │    MCP Server      │         │   Wazuh Client       │   │
+│  │   (Port 8080)      │ ◄─────► │  (Interactive CLI)   │   │
+│  │                    │  HTTP   │                      │   │
+│  │ Dockerfile.server  │         │  Dockerfile.client   │   │
+│  └────────────────────┘         └──────────────────────┘   │
+│           │                              │                  │
+│           │                              │                  │
+│           └──────────┬───────────────────┘                  │
+│                      │                                      │
+│                ┌─────▼──────┐                              │
+│                │  ChromaDB  │                              │
+│                │(Shared Vol)│                              │
+│                └────────────┘                              │
+│                      │                                      │
+│                ┌─────▼──────┐                              │
+│                │  .env file │                              │
+│                │ (Mounted)  │                              │
+│                └────────────┘                              │
+└─────────────────────────────────────────────────────────────┘
+                       │
+                       ▼
+              ┌────────────────┐
+              │   Wazuh API    │
+              │ Wazuh Indexer  │
+              └────────────────┘
 ```
 
 ### Why Two Dockerfiles?
 
-| Component | Size | Purpose | Key Features |
-|-----------|------|---------|--------------|
-| **Dockerfile.server** | ~400MB | MCP Server | Lightweight, Server components only, MCP protocol server, Wazuh API tools |
-| **Dockerfile.client** | ~550MB | Wazuh Client | Full application, AI agent, Interactive CLI, GPT-4 integration |
+**Dockerfile.server** - MCP Server
+- Lightweight (~400MB)
+- Only includes server components
+- Runs MCP protocol server
+- Provides Wazuh API tools
+
+**Dockerfile.client** - Wazuh Client
+- Full application (~550MB)
+- Includes AI agent
+- Interactive CLI interface
+- GPT-4 integration
 
 ### Environment Variable Handling
 
-The `.env` file is handled in **two ways** for maximum flexibility:
+The `.env` file is handled in two ways for maximum flexibility:
 
-**🔵 Primary Method: `env_file` directive**
+**Primary Method**: `env_file` directive in `docker-compose.yml`
 - Automatically loads variables into container environment
 - No code changes needed
 - Standard Docker Compose pattern
-- Defined in `docker-compose.yml`
 
-**🟢 Backup Method: Volume mount**
-- File mounted at `/app/.env` (read-only)
+**Backup Method**: Volume mount at `/app/.env`
+- File is mounted read-only
 - Python code can use `python-dotenv`
 - Fallback if `env_file` fails
-
----
 
 ## 📦 Prerequisites
 
 ### Required Software
 
-| Software | Minimum Version | Installation Guide |
-|----------|----------------|-------------------|
-| Docker | 20.10+ | [Install Docker](https://docs.docker.com/get-docker/) |
-| Docker Compose | 2.0+ | [Install Compose](https://docs.docker.com/compose/install/) |
+- **Docker**: 20.10+ ([Install Docker](https://docs.docker.com/get-docker/))
+- **Docker Compose**: 2.0+ ([Install Compose](https://docs.docker.com/compose/install/))
 
 ### Supported Platforms
 
-- ✅ **Linux** (amd64, arm64)
-- ✅ **macOS** (Intel, Apple Silicon)
-- ✅ **Windows** (WSL2, Docker Desktop)
+✅ Linux (amd64, arm64)  
+✅ macOS (Intel, Apple Silicon)  
+✅ Windows (WSL2, Docker Desktop)
 
 ### Required Access
 
-- ✅ Wazuh Manager API
-- ✅ Wazuh Indexer (OpenSearch)
-- ✅ OpenAI API key
-
----
+- Wazuh Manager API
+- Wazuh Indexer (OpenSearch)
+- OpenAI API key
 
 ## 📁 File Structure
 
 ```
 wazuh-mcp-docker/
+├── .env                    # Your configuration (REQUIRED)
+├── .env.example           # Template for .env
+├── docker-compose.yml     # Orchestration config
 │
-├── .env                      # Your configuration (REQUIRED)
-├── .env.example             # Template for .env
-├── docker-compose.yml       # Orchestration config
-│
-├── Dockerfile.server        # MCP server image
-├── Dockerfile.client        # Wazuh client image
+├── Dockerfile.server      # MCP server image
+├── Dockerfile.client      # Wazuh client image
 │
 ├── Python Application Files/
-│   ├── mcp_server.py           # MCP server (server only)
-│   ├── mcp_helper.py           # MCP utilities (server only)
-│   ├── mcp_client_call.py      # API client (both)
-│   ├── wazuh_client.py         # Interactive client (client only)
-│   ├── agent_prompt.py         # AI prompts (client only)
-│   ├── chroma_run.py           # ChromaDB workflow (client only)
-│   ├── rag_*.py                # RAG components (client only)
-│   └── requirements.txt        # Python dependencies (both)
+│   ├── mcp_server.py          # MCP server (server only)
+│   ├── mcp_helper.py          # MCP utilities (server only)
+│   ├── mcp_client_call.py     # API client (both)
+│   ├── wazuh_client.py        # Interactive client (client only)
+│   ├── agent_prompt.py        # AI prompts (client only)
+│   ├── chroma_run.py          # ChromaDB workflow (client only)
+│   ├── rag_*.py               # RAG components (client only)
+│   └── requirements.txt       # Python dependencies (both)
 │
 └── Data Directories/
-    └── rag_chroma/             # ChromaDB persistent storage (shared)
+    └── rag_chroma/            # ChromaDB persistent storage (shared)
 ```
 
----
+## 🚀 Quick Start
+
+### Step 1: Prepare Environment
+
+```bash
+# Clone or download your project
+cd wazuh-mcp-docker
+
 # Copy environment template
 cp .env.example .env
 
 # Edit .env with your credentials
-nano .env  # or use your preferred editorStep 2: Configure .env Filebash# Wazuh Configuration
+nano .env  # or use your preferred editor
+```
+
+### Step 2: Configure .env File
+
+```bash
+# Wazuh Configuration
 WAZUH_API_URL=https://your-wazuh-manager:55000
 WAZUH_API_USER=your-username
 WAZUH_API_PASSWORD=your-password
@@ -154,476 +158,509 @@ OPENAI_MODEL=gpt-4
 
 # MCP Server Configuration
 MCP_SERVER_HOST=0.0.0.0
-MCP_SERVER_PORT=8080Step 3: Build and Run
-Why Two Dockerfiles?
+MCP_SERVER_PORT=8080
+```
 
-Dockerfile.server - MCP Server
+### Step 3: Build and Run
 
-Lightweight (~400MB)
-Only includes server components
-Runs MCP protocol server
-Provides Wazuh API tools
-
-
-Dockerfile.client - Wazuh Client
-
-Full application (~550MB)
-Includes AI agent
-Interactive CLI interface
-GPT-4 integration
-
-
-
-Environment Variable Handling
-The .env file is handled in two ways for maximum flexibility:
-
-Primary Method: env_file directive in docker-compose.yml
-
-Automatically loads variables into container environment
-No code changes needed
-Standard Docker Compose pattern
-
-
-Backup Method: Volume mount at /app/.env
-
-File is mounted read-only
-Python code can use python-dotenv
-Fallback if env_file fails
-
-
-
-📦 Prerequisites
-Required Software
-
-Docker: 20.10+ (Install Docker)
-Docker Compose: 2.0+ (Install Compose)
-
-Supported Platforms
-✅ Linux (amd64, arm64)
-✅ macOS (Intel, Apple Silicon)
-✅ Windows (WSL2, Docker Desktop)
-Required Access
-
-Wazuh Manager API
-Wazuh Indexer (OpenSearch)
-OpenAI API key
-
-📁 File Structure
-wazuh-mcp-docker/
-├── .env                        # Your configuration (REQUIRED)
-├── .env.example               # Template for .env
-├── docker-compose.yml         # Orchestration config
-│
-├── Dockerfile.server      # MCP server image
-├── Dockerfile.client      # Wazuh client image
-│
-├── Python Application Files/
-│   ├── mcp_server.py         # MCP server (server only)
-│   ├── mcp_helper.py         # MCP utilities (server only)
-│   ├── mcp_client_call.py    # API client (both)
-│   ├── wazuh_client.py       # Interactive client (client only)
-│   ├── agent_prompt.py       # AI prompts (client only)
-│   ├── chroma_run.py         # ChromaDB workflow (client only)
-│   ├── rag_*.py              # RAG components (client only)
-│   └── requirements.txt      # Python dependencies (both)
-│
-└── Data Directories/
-    └── rag_chroma/           # ChromaDB persistent storage (shared)
-🚀 Quick Start
-Step 1: Prepare Environment
-bash# Clone or download your project
-cd wazuh-mcp-docker
-
-# Copy the .env file from your project
-cp /path/to/your/_env .env
-
-# OR create from template
-cp .env.example .env
-nano .env  # Edit with your credentials
-Step 2: Build Images
-bash# Build both images
+```bash
+# Build both images
 docker-compose build
 
-# Or build individually
-docker-compose build wazuh-mcp-server
-docker-compose build wazuh-client
-Step 3: Start Services
-bash# Start both services
+# Start services
 docker-compose up -d
 
 # Check status
 docker-compose ps
+```
 
-# View logs
-docker-compose logs -f
-Step 4: Use the Client
-bash# Attach to interactive client
-docker attach wazuh-client
+### Step 4: Use the Client
 
-# OR run client in new container
+```bash
+# Interactive mode
 docker-compose run --rm wazuh-client
-⚙️ Environment Configuration
-Your .env File Location
-The .env file must be in the same directory as docker-compose.yml:
-wazuh-mcp-docker/
-├── .env                    ← Put your _env file here (rename to .env)
-├── docker-compose.yml
-└── ...
-.env File Format
-Your existing _env file should be renamed to .env:
-bash# Wazuh Server Configuration
-WAZUH_API="https://127.0.0.1:55000"
-WAZUH_USER="w<WAZUH_USER>"
-WAZUH_PASSWORD=""
 
-# Wazuh Indexer Configuration
-WAZUH_INDEXER_API="https://127.0.0.1:9200"
-WAZUH_INDEXER_USER="<WAZUH_ADMIN>"
-WAZUH_INDEXER_PASSWORD=""
+# One-off query
+docker-compose run --rm wazuh-client --query "Show me critical vulnerabilities"
+```
 
-# OpenAI API Key
-api_key=""
-How Environment Variables Work
-Docker Compose loads .env in two ways:
+## ⚙️ Environment Configuration
 
-As environment variables (via env_file: - .env)
+### Complete .env Template
 
-python   import os
-   wazuh_api = os.getenv('WAZUH_API')
+```bash
+# ============================================
+# Wazuh API Configuration
+# ============================================
+WAZUH_API_URL=https://wazuh-manager.example.com:55000
+WAZUH_API_USER=wazuh-wui
+WAZUH_API_PASSWORD=SecurePassword123!
 
-As mounted file (via volumes)
+# ============================================
+# Wazuh Indexer (OpenSearch) Configuration
+# ============================================
+WAZUH_INDEXER_URL=https://wazuh-indexer.example.com:9200
+WAZUH_INDEXER_USER=admin
+WAZUH_INDEXER_PASSWORD=IndexerPassword123!
 
-python   from dotenv import load_dotenv
-   load_dotenv('/app/.env')  # Fallback method
-🔨 Building Images
-Standard Build
-bash# Build all images
+# ============================================
+# OpenAI Configuration
+# ============================================
+OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz123456789
+OPENAI_MODEL=gpt-4  # or gpt-4-turbo, gpt-3.5-turbo
+
+# ============================================
+# MCP Server Configuration
+# ============================================
+MCP_SERVER_HOST=0.0.0.0
+MCP_SERVER_PORT=8080
+
+# ============================================
+# ChromaDB Configuration
+# ============================================
+CHROMA_PERSIST_DIRECTORY=/app/rag_chroma
+CHROMA_COLLECTION_NAME=wazuh_rules
+
+# ============================================
+# Logging Configuration
+# ============================================
+LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR
+```
+
+## 🔨 Building Images
+
+### Build All Images
+
+```bash
 docker-compose build
+```
 
-# Build with no cache
+### Build Specific Service
+
+```bash
+# Build only MCP server
+docker-compose build mcp-server
+
+# Build only Wazuh client
+docker-compose build wazuh-client
+```
+
+### Build with No Cache
+
+```bash
 docker-compose build --no-cache
+```
 
-# Build specific service
-docker-compose build wazuh-mcp-server
-Cross-Platform Build
-bash# Build for specific platform
-docker-compose build --platform linux/amd64
+### Build for Specific Platform
 
-# Build for multiple platforms (requires buildx)
-docker buildx create --use
-docker buildx build --platform linux/amd64,linux/arm64 -f Dockerfile.server -t wazuh-mcp-server:latest .
-Build Options
-bash# Parallel build (faster)
-docker-compose build --parallel
+```bash
+# For ARM64 (Apple Silicon, ARM servers)
+docker-compose build --build-arg BUILDPLATFORM=linux/arm64
 
-# Pull latest base images first
-docker-compose build --pull
+# For AMD64 (Intel/AMD)
+docker-compose build --build-arg BUILDPLATFORM=linux/amd64
+```
 
-# Quiet mode
-docker-compose build --quiet
-▶️ Running Services
-Start Services
-bash# Start in background (detached)
+## 🏃 Running Services
+
+### Start All Services
+
+```bash
+# Detached mode (background)
 docker-compose up -d
 
-# Start and view logs
+# Foreground mode (see logs)
 docker-compose up
+```
 
-# Start specific service
-docker-compose up -d wazuh-mcp-server
-Stop Services
-bash# Stop all services
-docker-compose down
+### Start Specific Service
 
-# Stop but keep volumes
-docker-compose stop
+```bash
+docker-compose up -d mcp-server
+```
 
-# Stop specific service
-docker-compose stop wazuh-client
-Restart Services
-bash# Restart all
-docker-compose restart
+### Run Interactive Client
 
-# Restart specific service
-docker-compose restart wazuh-mcp-server
-🌍 Cross-Platform Support
-Platform Detection
-The Dockerfiles automatically detect and build for the correct platform:
-dockerfileFROM --platform=$BUILDPLATFORM python:3.11-slim
-Supported platforms:
-
-linux/amd64 - Intel/AMD 64-bit
-linux/arm64 - ARM 64-bit (Apple Silicon, ARM servers)
-
-Building for Specific Platform
-bash# For Intel/AMD (most common)
-docker-compose build --platform linux/amd64
-
-# For ARM (Apple Silicon Mac, ARM servers)
-docker-compose build --platform linux/arm64
-
-# For current platform (automatic)
-docker-compose build
-Testing on Different Platforms
-bash# On Mac M1/M2 (ARM)
-docker-compose build  # Builds for arm64 automatically
-
-# On Intel Mac or Linux
-docker-compose build  # Builds for amd64 automatically
-
-# On Windows with WSL2
-docker-compose build  # Builds for amd64 automatically
-Multi-Architecture Images
-To build for multiple platforms:
-bash# Setup buildx (one-time)
-docker buildx create --name multiplatform --use
-docker buildx inspect --bootstrap
-
-# Build for both platforms
-docker buildx build \
-  --platform linux/amd64,linux/arm64 \
-  -f Dockerfile.server \
-  -t wazuh-mcp-server:latest \
-  --push .
-💻 Usage Examples
-Server Only Mode
-Run just the MCP server:
-bash# Start server
-docker-compose up -d wazuh-mcp-server
-
-# Test server
-curl http://localhost:8080/
-
-# View logs
-docker-compose logs -f wazuh-mcp-server
-Client Only Mode
-Run client connecting to existing server:
-bash# Ensure server is running first
-docker-compose up -d wazuh-mcp-server
-
-# Run interactive client
+```bash
+# Interactive shell
 docker-compose run --rm wazuh-client
 
-# Or attach to running client
-docker attach wazuh-client
-Full Stack Mode
-Run both server and client:
-bash# Start everything
-docker-compose up -d
+# With specific query
+docker-compose run --rm wazuh-client --query "List all active agents"
 
-# Attach to client
-docker attach wazuh-client
+# With debugging
+docker-compose run --rm wazuh-client --debug
+```
 
-# Detach without stopping: Ctrl+P, Ctrl+Q
-Development Mode
-Run with code changes:
-bash# Mount source code as volumes (add to docker-compose.yml)
-volumes:
-  - ./mcp_server.py:/app/mcp_server.py
-  - ./wazuh_client.py:/app/wazuh_client.py
+### View Logs
 
-# Restart to apply changes
-docker-compose restart
-🔧 Troubleshooting
-.env File Not Found
-bash# Error: .env: no such file or directory
-# Solution: Copy your _env file
-cp _env .env
-
-# Verify file exists
-ls -la .env
-Permission Denied
-bash# Error: permission denied
-# Solution: Fix permissions
-chmod 644 .env
-chmod +x start.sh
-Port Already in Use
-bash# Error: port 8080 already allocated
-# Solution 1: Stop conflicting service
-docker ps
-docker stop <container-id>
-
-# Solution 2: Change port in docker-compose.yml
-ports:
-  - "8081:8080"  # Use 8081 instead
-Container Won't Start
-bash# Check logs
-docker-compose logs wazuh-mcp-server
-
-# Check container status
-docker-compose ps
-
-# Inspect container
-docker inspect wazuh-mcp-server
-Environment Variables Not Loading
-bash# Verify .env file
-cat .env
-
-# Check loaded variables
-docker-compose config
-
-# Test inside container
-docker-compose exec wazuh-mcp-server env | grep WAZUH
-Connection to Wazuh Failed
-bash# Test from container
-docker-compose exec wazuh-mcp-server curl -k https://localhost:55000
-
-# Check network
-docker network inspect wazuh-network
-
-# Verify credentials
-docker-compose exec wazuh-mcp-server python -c "from mcp_client_call import get_token; print(get_token())"
-Cross-Platform Issues
-bash# Check platform
-docker-compose exec wazuh-mcp-server uname -m
-# x86_64 = amd64
-# aarch64 = arm64
-
-# Rebuild for correct platform
-docker-compose build --no-cache --platform linux/$(uname -m)
-🛠️ Maintenance
-View Logs
-bash# All services
+```bash
+# All services
 docker-compose logs -f
 
 # Specific service
-docker-compose logs -f wazuh-mcp-server
+docker-compose logs -f mcp-server
 docker-compose logs -f wazuh-client
 
 # Last 100 lines
-docker-compose logs --tail=100
+docker-compose logs --tail=100 mcp-server
+```
 
-# Since specific time
-docker-compose logs --since 1h
-Access Container Shell
-bash# Server shell
-docker-compose exec wazuh-mcp-server /bin/bash
+### Stop Services
 
-# Client shell
-docker-compose exec wazuh-client /bin/bash
-
-# As root (for debugging)
-docker-compose exec -u root wazuh-mcp-server /bin/bash
-Update Images
-bash# Pull latest base images
-docker-compose pull
-
-# Rebuild images
-docker-compose build --pull
-
-# Recreate containers
-docker-compose up -d --force-recreate
-Backup ChromaDB
-bash# Create backup
-tar czf chroma-backup-$(date +%Y%m%d).tar.gz rag_chroma/
-
-# Restore backup
-tar xzf chroma-backup-20240101.tar.gz
-Clean Up
-bash# Remove stopped containers
+```bash
+# Stop all
 docker-compose down
 
-# Remove with volumes (WARNING: deletes data)
+# Stop and remove volumes
 docker-compose down -v
 
-# Remove images
-docker-compose down --rmi all
+# Stop specific service
+docker-compose stop mcp-server
+```
 
-# Clean everything
-docker-compose down -v --rmi all
-docker system prune -a
-📊 Resource Usage
-Check Resource Usage
-bash# Real-time stats
-docker stats
+## 🌍 Cross-Platform Support
 
-# Specific container
-docker stats wazuh-mcp-server
+### Linux
 
-# Format output
-docker stats --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}"
-Set Resource Limits
-Add to docker-compose.yml:
-yamlservices:
-  wazuh-mcp-server:
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
-        reservations:
-          cpus: '1'
-          memory: 1G
-🔒 Security Best Practices
+```bash
+# Standard Docker installation
+sudo apt-get update
+sudo apt-get install docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
-Never commit .env file
+# Run without sudo (optional)
+sudo usermod -aG docker $USER
+newgrp docker
+```
 
-bash   echo ".env" >> .gitignore
+### macOS
 
-Use secrets for production
+```bash
+# Install Docker Desktop
+brew install --cask docker
 
-yaml   secrets:
-     wazuh_password:
-       file: ./secrets/wazuh_password.txt
+# Or download from:
+# https://www.docker.com/products/docker-desktop
 
-Run as non-root (already configured)
-Use HTTPS for Wazuh API (already in .env)
-Rotate API keys regularly
-Monitor container logs
+# Start Docker Desktop and run:
+docker-compose up -d
+```
 
-📚 Additional Resources
+### Windows (WSL2)
 
-Docker Documentation
-Docker Compose Documentation
-Wazuh Documentation
-Multi-platform Builds
+```powershell
+# 1. Install WSL2
+wsl --install
 
-🆘 Getting Help
-Quick Diagnostics
-bash# 1. Check Docker
-docker --version
-docker-compose --version
+# 2. Install Docker Desktop for Windows
+# Download from: https://www.docker.com/products/docker-desktop
 
-# 2. Check services
+# 3. Enable WSL2 backend in Docker Desktop settings
+
+# 4. In WSL2 terminal:
+cd /path/to/wazuh-mcp-docker
+docker-compose up -d
+```
+
+### Platform-Specific Notes
+
+**Apple Silicon (M1/M2/M3)**
+```bash
+# Images are multi-arch compatible
+# No special configuration needed
+docker-compose up -d
+```
+
+**Raspberry Pi (ARM)**
+```bash
+# Use arm64 builds
+docker-compose build --build-arg BUILDPLATFORM=linux/arm64
+docker-compose up -d
+```
+
+## 💡 Usage Examples
+
+### Example 1: Query Agent Information
+
+```bash
+docker-compose run --rm wazuh-client --query "Show me all disconnected agents"
+```
+
+### Example 2: Check Critical Vulnerabilities
+
+```bash
+docker-compose run --rm wazuh-client --query "What are the critical vulnerabilities on agent 001?"
+```
+
+### Example 3: Interactive Session
+
+```bash
+docker-compose run --rm wazuh-client
+
+# Inside the container:
+> Show me the cluster health status
+> List all security alerts from the last hour
+> What are the top 10 rules triggered today?
+> exit
+```
+
+### Example 4: Custom ChromaDB Query
+
+```bash
+docker-compose run --rm wazuh-client --query "Find rules related to SSH authentication failures"
+```
+
+### Example 5: Export Data
+
+```bash
+# Run client with volume mount for exports
+docker-compose run --rm -v $(pwd)/exports:/exports wazuh-client \
+  --query "Export all agent data to CSV" --output /exports/agents.csv
+```
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+#### 1. MCP Server Not Responding
+
+```bash
+# Check if server is running
 docker-compose ps
 
-# 3. Check logs
-docker-compose logs --tail=50
+# View server logs
+docker-compose logs mcp-server
 
-# 4. Check environment
-docker-compose config
+# Restart server
+docker-compose restart mcp-server
+```
 
-# 5. Test connectivity
-docker-compose exec wazuh-mcp-server curl http://localhost:8080/
-Common Commands Reference
-bash# Start
-docker-compose up -d
+#### 2. Client Can't Connect to Server
 
-# Stop
-docker-compose down
+```bash
+# Check network connectivity
+docker-compose exec wazuh-client ping mcp-server
 
-# Logs
-docker-compose logs -f
+# Verify port mapping
+docker-compose port mcp-server 8080
 
-# Shell
-docker-compose exec wazuh-mcp-server /bin/bash
+# Check environment variables
+docker-compose exec wazuh-client env | grep MCP
+```
 
-# Rebuild
+#### 3. Wazuh API Connection Failed
+
+```bash
+# Verify credentials in .env
+cat .env | grep WAZUH_API
+
+# Test API connection manually
+docker-compose run --rm wazuh-client python -c "
+from mcp_client_call import test_wazuh_connection
+test_wazuh_connection()
+"
+```
+
+#### 4. ChromaDB Persistence Issues
+
+```bash
+# Check volume exists
+docker volume ls | grep rag_chroma
+
+# Inspect volume
+docker volume inspect wazuh-mcp-docker_rag_chroma
+
+# Rebuild ChromaDB
+docker-compose run --rm wazuh-client python chroma_run.py
+```
+
+#### 5. Permission Denied Errors
+
+```bash
+# Fix ChromaDB directory permissions
+sudo chown -R 1000:1000 rag_chroma/
+
+# Or run with user override
+docker-compose run --user root --rm wazuh-client bash
+```
+
+### Debug Mode
+
+```bash
+# Enable debug logging
+docker-compose run --rm -e LOG_LEVEL=DEBUG wazuh-client
+
+# Run with shell access
+docker-compose run --rm wazuh-client bash
+
+# Inside container, manually run scripts
+python wazuh_client.py --debug
+```
+
+### Network Troubleshooting
+
+```bash
+# Inspect Docker network
+docker network inspect wazuh-mcp-docker_default
+
+# Test external connectivity
+docker-compose run --rm wazuh-client curl -k $WAZUH_API_URL
+
+# Check DNS resolution
+docker-compose run --rm wazuh-client nslookup wazuh-manager
+```
+
+## 🛠️ Maintenance
+
+### Update Images
+
+```bash
+# Pull latest base images
+docker-compose pull
+
+# Rebuild with latest code
 docker-compose build --no-cache
 
-# Status
+# Restart services
+docker-compose up -d --force-recreate
+```
+
+### Backup ChromaDB Data
+
+```bash
+# Create backup
+docker run --rm -v wazuh-mcp-docker_rag_chroma:/data -v $(pwd):/backup \
+  ubuntu tar czf /backup/chromadb-backup-$(date +%Y%m%d).tar.gz /data
+
+# Restore backup
+docker run --rm -v wazuh-mcp-docker_rag_chroma:/data -v $(pwd):/backup \
+  ubuntu tar xzf /backup/chromadb-backup-20240101.tar.gz -C /
+```
+
+### Clean Up
+
+```bash
+# Remove stopped containers
+docker-compose rm
+
+# Remove unused images
+docker image prune -a
+
+# Remove all project resources
+docker-compose down -v --rmi all
+
+# Complete Docker cleanup
+docker system prune -a --volumes
+```
+
+### Monitor Resource Usage
+
+```bash
+# Check container stats
+docker stats
+
+# Check disk usage
+docker system df
+
+# Check specific service resources
+docker-compose exec mcp-server top
+```
+
+### Update Dependencies
+
+```bash
+# Update Python packages
+docker-compose run --rm wazuh-client pip list --outdated
+
+# Rebuild after requirements.txt changes
+docker-compose build --no-cache wazuh-client
+```
+
+## 📊 Health Checks
+
+### Automated Health Monitoring
+
+```bash
+# Check service health
 docker-compose ps
 
-# Client
-docker attach wazuh-client
-🎉 Success Checklist
-✅ .env file exists with correct credentials
-✅ docker-compose build completes without errors
-✅ docker-compose up -d starts both services
-✅ docker-compose ps shows services as "Up" and "healthy"
-✅ curl http://localhost:8080/ returns HTTP 200
-✅ docker attach wazuh-client connects successfully
-✅ Client responds to queries with accurate data
+# MCP Server health endpoint
+curl http://localhost:8080/health
 
-You're all set! 🚀
-For more detailed information, see the other documentation files in this package.
+# View health check logs
+docker inspect --format='{{json .State.Health}}' wazuh-mcp-docker-mcp-server-1 | jq
+```
+
+### Manual Health Verification
+
+```bash
+# Test MCP server
+docker-compose exec mcp-server python -c "
+import requests
+response = requests.get('http://localhost:8080/health')
+print(response.json())
+"
+
+# Test Wazuh connectivity
+docker-compose run --rm wazuh-client python -c "
+from mcp_client_call import MCPClient
+client = MCPClient()
+print(client.get_agents())
+"
+```
+
+## 📝 Development Tips
+
+### Local Development
+
+```bash
+# Mount local code for development
+docker-compose run --rm -v $(pwd):/app wazuh-client bash
+
+# Live reload (modify docker-compose.yml to add volume mounts)
+volumes:
+  - .:/app
+  - /app/rag_chroma
+```
+
+### Testing Changes
+
+```bash
+# Run tests inside container
+docker-compose run --rm wazuh-client pytest
+
+# Run specific test file
+docker-compose run --rm wazuh-client python -m pytest tests/test_client.py
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Test with Docker (`docker-compose build && docker-compose up`)
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🔗 Resources
+
+- [Wazuh Documentation](https://documentation.wazuh.com/)
+- [Docker Documentation](https://docs.docker.com/)
+- [MCP Protocol](https://modelcontextprotocol.io/)
+- [OpenAI API Reference](https://platform.openai.com/docs/api-reference)
+
+## 💬 Support
+
+For issues, questions, or contributions:
+- Open an issue on GitHub
+- Check existing documentation
+- Review troubleshooting section
+
+---
+
+**Made with ❤️ for Wazuh Security Operations**
